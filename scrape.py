@@ -68,10 +68,6 @@ def write_empty_xlsx(filename):
         worksheet.write_row(0, 0, [])
 
 
-def row_style():
-    return {'background-color': 'black', 'color': 'green'}
-
-
 def append_df_to_excel(lines, sheet_name='Sheet1', start_row=None, truncate_sheet=False, **to_excel_kwargs):
     filename = 'result.xlsx'
     if not os.path.isfile(filename):
@@ -128,10 +124,10 @@ def get_indexes(rows):
                 while True:
                     i = i + 1
                     subNum = mainNum + str(i)
-                    try:
-                        int(rows[index+i+1][:1])
-                    except:
-                        break
+                    # try:
+                    #     int(rows[index+i+1][:1])
+                    # except:
+                    #     break
                     if subNum in row_head:
                         finalIndexes.append(index + i)
                         continue
@@ -316,7 +312,6 @@ def main():
             for element in elements:
                 subjectDefCode = element.find(id="subjectDefCode")['value']
                 download(code=subjectDefCode)
-                exit()
 
 
 if __name__ == '__main__':
