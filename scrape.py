@@ -214,8 +214,8 @@ def convert_to_csv(input_path):
     tabula.convert_into(input_path, output, output_format="csv", pages='all')
     with open(file=output, mode='r') as file:
         rows = list(csv.reader(file))
-    os.remove(output)
-    os.remove(input_path)
+    # os.remove(output)
+    # os.remove(input_path)
     indexes = get_indexes(rows)
     records = []
     head_content = ''
@@ -276,7 +276,8 @@ def write_pdf(content):
 
 
 def download(code):
-    url = "http://www.qkr.gov.al/umbraco/Surface/Documents/GenerateSimpleExtract"
+    # url = "http://www.qkr.gov.al/umbraco/Surface/Documents/GenerateSimpleExtract"
+    url = "http://www.qkr.gov.al/umbraco/Surface/Documents/GenerateHistoricExtract"
 
     recaptcha_response = solve_capture()
 
@@ -315,6 +316,7 @@ def main():
             for element in elements:
                 subjectDefCode = element.find(id="subjectDefCode")['value']
                 download(code=subjectDefCode)
+                exit()
 
 
 if __name__ == '__main__':
