@@ -201,6 +201,7 @@ def check_rearrange(row):
 
 
 def make_header(head_content, head_num):
+    head_num = str(head_num)
     head_content_list = head_content.split(head_num)
     if len(head_content_list) > 1:
         head_content__sublist = head_content_list[1].split(head_num.split('.')[0])
@@ -267,6 +268,8 @@ def convert_to_csv(input_path):
 
 def write_pdf(content):
     pdf_path = 'result.pdf'
+    if os.path.isfile(pdf_path):
+        os.remove(pdf_path)
     with open(file=pdf_path, mode='wb') as file:
         file.write(content)
     convert_to_csv(pdf_path)
