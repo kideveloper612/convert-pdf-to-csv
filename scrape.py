@@ -3,7 +3,10 @@ import sys
 import csv
 import tabula
 import requests
+import xlsxwriter
+import pandas as pd
 from time import sleep
+from openpyxl import load_workbook
 from bs4 import BeautifulSoup as Be
 from anticaptchaofficial.recaptchav2proxyless import *
 
@@ -59,6 +62,54 @@ def write(lines):
         writer.writerows(lines)
 
 
+def write_empty_xlsx(filename):
+    with xlsxwriter.Workbook(filename) as workbook:
+        worksheet = workbook.add_worksheet()
+        worksheet.write_row(0, 0, [])
+
+
+def row_style():
+    return {'background-color': 'black', 'color': 'green'}
+
+
+def append_df_to_excel(lines, sheet_name='Sheet1', start_row=None, truncate_sheet=False, **to_excel_kwargs):
+    filename = 'result.xlsx'
+    if not os.path.isfile(filename):
+        truncate_sheet = True
+        write_empty_xlsx(filename)
+
+    if 'engine' in to_excel_kwargs:
+        to_excel_kwargs.pop('engine')
+
+    writer = pd.ExcelWriter(filename, engine='openpyxl')
+
+    try:
+        writer.book = load_workbook(filename)
+
+        if start_row is None and sheet_name in writer.book.sheetnames:
+            start_row = writer.book[sheet_name].max_row
+
+        if truncate_sheet and sheet_name in writer.book.sheetnames:
+            idx = writer.book.sheetnames.index(sheet_name)
+            writer.book.remove(writer.book.worksheets[idx])
+            writer.book.create_sheet(sheet_name, idx)
+
+        writer.sheets = {ws.title: ws for ws in writer.book.worksheets}
+    except FileNotFoundError:
+        pass
+
+    if start_row is None or truncate_sheet is True:
+        start_row = 0
+
+    df_head = pd.DataFrame(lines).T.iloc[[0]].style.set_properties(**{'background-color': '#D9D9D9'})
+    df_body = pd.DataFrame(lines).T.iloc[[1]].style.set_properties(**{'background-color': '#38c276'})
+
+    df_head.to_excel(writer, sheet_name, startrow=start_row, header=False, index=False, engine='openpyxl')
+    df_body.to_excel(writer, sheet_name, startrow=start_row+1, header=False, index=False, engine='openpyxl')
+
+    writer.save()
+
+
 def get_indexes(rows):
     indexes = []
     for index, row in enumerate(rows):
@@ -77,6 +128,10 @@ def get_indexes(rows):
                 while True:
                     i = i + 1
                     subNum = mainNum + str(i)
+                    try:
+                        int(rows[index+i+1][:1])
+                    except:
+                        break
                     if subNum in row_head:
                         finalIndexes.append(index + i)
                         continue
@@ -97,7 +152,13 @@ def get_indexes(rows):
         for i in finalIndexes:
             if i not in indexes:
                 indexes.append(i)
-    indexes.append(len(rows))
+    for i in range(indexes[-1], len(rows)):
+        try:
+            int(rows[i][0].strip()[:1])
+            indexes.append(i+1)
+            break
+        except:
+            continue
     return indexes
 
 
@@ -136,11 +197,19 @@ def check_first_column_is_full_number(column):
         return False
 
 
-def rearrange(row):
+def check_rearrange(row):
     if check_first_column_is_full_number(row[0]):
-        return row[1:]
+        return True
     else:
-        return row
+        return False
+
+
+def make_header(head_content, head_num):
+    head_content_list = head_content.split(head_num)
+    if len(head_content_list) > 1:
+        head_content__sublist = head_content_list[1].split(head_num.split('.')[0])
+        return head_num + ' ' + head_content__sublist[0]
+    return head_content
 
 
 def convert_to_csv(input_path):
@@ -148,48 +217,56 @@ def convert_to_csv(input_path):
     tabula.convert_into(input_path, output, output_format="csv", pages='all')
     with open(file=output, mode='r') as file:
         rows = list(csv.reader(file))
-    # os.remove(output)
-    # os.remove(input_path)
+    os.remove(output)
+    os.remove(input_path)
     indexes = get_indexes(rows)
     records = []
     head_content = ''
+    temp_head_content = ''
     row_content = ''
     sub_dup_num = 0
     save_head_num = 0
     save_head = ''
-    for key, index in enumerate(indexes):
+    for key, index in enumerate(indexes[:-1]):
         start_index = index
         end_index = indexes[key+1]
         head_num = get_head_num(rows[start_index][0])
         for index_range in range(start_index, end_index):
             if index_range == start_index and head_num == -1:
                 sub_dup_num += 1
-                real_head_num = str(save_head_num) + '.' + str(sub_dup_num)
-                forward_head_num = str(save_head_num) + '.' + str(sub_dup_num + 1)
-                if len(save_head.split(real_head_num)) > 1:
-                    head_content = save_head.split(real_head_num)[1].split(forward_head_num)[0]
+                head_content = save_head
+                head_num = str(save_head_num).split('.')[0] + '.' + str(sub_dup_num)
                 for r in rows[index_range]:
                     row_content += r
             else:
                 sub_dup_num = 0
-                row = rearrange(rows[index_range])
-                head_content += row[0]
-                for r in row[1:]:
-                    row_content += r
+                row = rows[index_range]
+                if check_rearrange(row):
+                    head_content += row[0]
+                    head_content += ' '
+                    head_content += row[1]
+                    for r in row[2:]:
+                        row_content += r
+                else:
+                    head_content += row[0]
+                    for r in row[1:]:
+                        row_content += r
+        if head_content == save_head:
+            temp_head_content = make_header(save_head, head_num)
         save_head_num = head_num
         save_head = head_content
-        record = [head_content, row_content]
+        row_content = row_content.replace('\n', ' ')
+        if temp_head_content != '':
+            temp_head_content = temp_head_content.replace('\n', ' ')
+            record = [temp_head_content, row_content]
+        else:
+            head_content = head_content.replace('\n', ' ')
+            record = [head_content, row_content]
         head_content = ''
         row_content = ''
+        temp_head_content = ''
         records.append(record)
-    print(records)
-    header = []
-    write_row = []
-    for record in records:
-        header.append(record[0])
-        write_row.append(record[1])
-    write(lines=[header])
-    write(lines=[write_row])
+    append_df_to_excel(lines=records)
 
 
 def write_pdf(content):
@@ -230,7 +307,6 @@ def read_txt():
 
 def main():
     Ids = sys.argv[1:]
-    Ids = read_txt()
     for Id in Ids:
         print(Id)
         response = search_key(Id)
@@ -244,5 +320,4 @@ def main():
 
 
 if __name__ == '__main__':
-    convert_to_csv("EkstraktIThjeshte-11_18_2020.pdf")
-    # main()
+    main()
